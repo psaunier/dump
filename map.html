@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Europe Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <style>
+        .hover-image {
+            position: absolute;
+            pointer-events: none;
+            width: 200px;
+            height: auto;
+            border: 1px solid black;
+            background-color: white;
+            padding: 5px;
+            z-index: 1000;
+            display: none;
+        }
+        #details {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 40%;
+            height: 100%;
+            border-left: 2px solid black;
+            background-color: white;
+            padding: 10px;
+            overflow-y: auto;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Map of Europe</h1>
+    <div id="map" style="height: 600px; width: 100%;"></div>
+    <div id="details">
+        <button id="closeDetails" style="position: absolute; top: 10px; right: 10px; background: red; color: white; border: none; padding: 5px; cursor: pointer;">X</button>
+    </div>
+    <img id="hoverImage" class="hover-image" />
+
+    <script>
+        // Initialize the map and set its view to the center of Europe
+        var map = L.map('map', {
+            maxBounds: [[34.5, -25], [72, 45]], // Restrict the map view to the bounding box of Europe
+            maxBoundsViscosity: 1.0 // Prevents the map from panning outside of Europe
+        }).setView([54.5260, 15.2551], 4);
+
+        // Add event to hide detailsDiv when clicking on the seas or outside a country
+        map.on('click', function (e) {
+            var detailsDiv = document.getElementById('details');
+            if (!e.originalEvent.target.closest('.leaflet-interactive')) { // Check if the click is not on a country
+                detailsDiv.style.display = 'none';
+                document.getElementById('map').style.width = '100%';
+            }
+        });
+
+        // Load a base map layer (OpenStreetMap)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 18,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // Fetch GeoJSON data for European country borders from a different source
+        axios.get('https://raw.githubusercontent.com/leakyMirror/map-of-europe/master/GeoJSON/europe.geojson')
+            .then(function (response) {
+                var countriesData = response.data;
+
+                // Add GeoJSON countries data with grey borders
+                L.geoJSON(countriesData, {
+                    style: function () {
+                        return {
+                            color: 'grey',      // Set border color to grey
+                            weight: 1,          // Set a thin border line
+                            fillOpacity: 0.0    // Keep the countries transparent
+                        };
+                    },
+                    onEachFeature: function (feature, layer) {
+                        var hoverImage = document.getElementById('hoverImage');
+                        var detailsDiv = document.getElementById('details');
+
+                        // Add hover effect to highlight country and display image
+                        layer.on('mouseover', function (e) {
+                            var countryName = feature.properties.NAME;
+                            var imageUrl = countryName.toLowerCase() + ".jpeg";
+                            hoverImage.src = imageUrl;
+                            hoverImage.style.display = 'block';
+                            hoverImage.alt = countryName + " image";
+                            hoverImage.style.left = (e.originalEvent.pageX + 10) + 'px';
+                            hoverImage.style.top = (e.originalEvent.pageY - hoverImage.offsetHeight + 10) + 'px';
+                            layer.setStyle({
+                                weight: 2,
+                                color: 'blue',
+                                fillOpacity: 0.1
+                            });
+                        });
+
+                        layer.on('mousemove', function (e) {
+                            hoverImage.style.left = (e.originalEvent.pageX + 10) + 'px';
+                            hoverImage.style.top = (e.originalEvent.pageY - hoverImage.offsetHeight + 10) + 'px';
+                        });
+
+                        // Add click event to open image in split-screen
+                        layer.on('click', function () {
+                            var countryName = feature.properties.NAME;
+                            var imageUrl = countryName.toLowerCase() + ".jpeg";
+                            detailsDiv.innerHTML = "<button id='closeDetails' style='position: absolute; top: 10px; right: 10px; background: red; color: white; border: none; padding: 5px; cursor: pointer;'>X</button>" +
+                                "<h2>" + countryName + "</h2><img src='" + imageUrl + "' alt='" + countryName + " image' style='width: 100%; height: auto;'><p>This country is " + countryName + "</p>";
+                            detailsDiv.style.display = 'block';
+                            document.getElementById('map').style.width = '60%';
+                            detailsDiv.style.width = '40%';
+                            detailsDiv.style.float = 'right';
+
+                            // Add event listener to close button
+                            document.getElementById('closeDetails').addEventListener('click', function () {
+                                detailsDiv.style.display = 'none';
+                                document.getElementById('map').style.width = '100%';
+                            });
+                        });
+
+                        layer.on('mouseout', function () {
+                            hoverImage.style.display = 'none';
+                            layer.setStyle({
+                                weight: 1,
+                                color: 'grey',
+                                fillOpacity: 0.0
+                            });
+                        });
+                    }
+                }).addTo(map);
+            })
+            .catch(function (error) {
+                console.error('Error fetching the GeoJSON data:', error);
+            });
+    </script>
+</body>
+</html>
